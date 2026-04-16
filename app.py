@@ -230,8 +230,6 @@ def validate_date_availability(price_dict, user_tickers, start_date, end_date):
     overlapping_start = availability_df["Available Start"].max()
     overlapping_end = availability_df["Available End"].min()
 
-    # End-date availability needs a small tolerance because weekends, holidays, and intraday requests
-    # can make the latest market date slightly earlier than the calendar end date.
     end_gap_days = (end_date - overlapping_end).days
     needs_adjustment = (start_date < overlapping_start) or (end_gap_days > 7)
     is_valid = overlapping_start < overlapping_end and not needs_adjustment
@@ -349,10 +347,6 @@ def negative_sharpe_ratio(weights, mean_returns, cov_matrix, annual_rf_rate):
 
 
 def optimize_gmv(mean_returns, cov_matrix):
-    """
-    Find the Global Minimum Variance portfolio with no short selling.
-    Uses multiple starting guesses to avoid getting stuck at equal weights.
-    """
     n = len(mean_returns)
     bounds = tuple((0, 1) for _ in range(n))
     constraints = [{'type': 'eq', 'fun': lambda w: np.sum(w) - 1}]
@@ -941,15 +935,17 @@ if st.session_state.analysis_ready:
                 )
                 st.plotly_chart(gmv_weight_fig, use_container_width=True)
 
-                gmv_metric_cols = st.columns(5)
-                gmv_metric_cols[0].metric("Annualized Return", f"{gmv_metrics['Annualized Return']:.2%}")
-                gmv_metric_cols[1].metric("Annualized Volatility", f"{gmv_metrics['Annualized Volatility']:.2%}")
-                gmv_metric_cols[2].metric("Sharpe Ratio", f"{gmv_metrics['Sharpe Ratio']:.3f}")
-                gmv_metric_cols[3].metric(
+                gmv_metric_row1 = st.columns(2)
+                gmv_metric_row1[0].metric("Annualized Return", f"{gmv_metrics['Annualized Return']:.2%}")
+                gmv_metric_row1[1].metric("Annualized Volatility", f"{gmv_metrics['Annualized Volatility']:.2%}")
+
+                gmv_metric_row2 = st.columns(3)
+                gmv_metric_row2[0].metric("Sharpe Ratio", f"{gmv_metrics['Sharpe Ratio']:.3f}")
+                gmv_metric_row2[1].metric(
                     "Sortino Ratio",
                     f"{gmv_metrics['Sortino Ratio']:.3f}" if pd.notna(gmv_metrics["Sortino Ratio"]) else "N/A"
                 )
-                gmv_metric_cols[4].metric("Maximum Drawdown", f"{gmv_metrics['Maximum Drawdown']:.2%}")
+                gmv_metric_row2[2].metric("Maximum Drawdown", f"{gmv_metrics['Maximum Drawdown']:.2%}")
 
                 equal_var = portfolio_variance(equal_weights, cov_matrix_full)
                 gmv_var = portfolio_variance(gmv_weights, cov_matrix_full)
@@ -979,15 +975,17 @@ if st.session_state.analysis_ready:
                 )
                 st.plotly_chart(tangency_weight_fig, use_container_width=True)
 
-                tangency_metric_cols = st.columns(5)
-                tangency_metric_cols[0].metric("Annualized Return", f"{tangency_metrics['Annualized Return']:.2%}")
-                tangency_metric_cols[1].metric("Annualized Volatility", f"{tangency_metrics['Annualized Volatility']:.2%}")
-                tangency_metric_cols[2].metric("Sharpe Ratio", f"{tangency_metrics['Sharpe Ratio']:.3f}")
-                tangency_metric_cols[3].metric(
+                tangency_metric_row1 = st.columns(2)
+                tangency_metric_row1[0].metric("Annualized Return", f"{tangency_metrics['Annualized Return']:.2%}")
+                tangency_metric_row1[1].metric("Annualized Volatility", f"{tangency_metrics['Annualized Volatility']:.2%}")
+
+                tangency_metric_row2 = st.columns(3)
+                tangency_metric_row2[0].metric("Sharpe Ratio", f"{tangency_metrics['Sharpe Ratio']:.3f}")
+                tangency_metric_row2[1].metric(
                     "Sortino Ratio",
                     f"{tangency_metrics['Sortino Ratio']:.3f}" if pd.notna(tangency_metrics["Sortino Ratio"]) else "N/A"
                 )
-                tangency_metric_cols[4].metric("Maximum Drawdown", f"{tangency_metrics['Maximum Drawdown']:.2%}")
+                tangency_metric_row2[2].metric("Maximum Drawdown", f"{tangency_metrics['Maximum Drawdown']:.2%}")
 
         if gmv_weights is not None or tangency_weights is not None:
             st.markdown("---")
@@ -1180,7 +1178,11 @@ if st.session_state.analysis_ready:
         rf_decimal = risk_free_rate / 100
         if tangency_weights is not None and tangency_metrics["Annualized Volatility"] > 0:
             tangency_sharpe = (tangency_metrics["Annualized Return"] - rf_decimal) / tangency_metrics["Annualized Volatility"]
-            cal_x = np.linspace(0, max(point_df["Volatility"].max(), frontier_df["Volatility"].max() if not frontier_df.empty else 0) * 1.1, 100)
+            cal_x = np.linspace(
+                0,
+                max(point_df["Volatility"].max(), frontier_df["Volatility"].max() if not frontier_df.empty else 0) * 1.1,
+                100
+            )
             cal_y = rf_decimal + tangency_sharpe * cal_x
             frontier_fig.add_trace(
                 go.Scatter(
@@ -1379,6 +1381,7 @@ if st.session_state.analysis_ready:
                         labels={"Weight": "Portfolio Weight"}
                     )
                     st.plotly_chart(grouped_fig, use_container_width=True)
+
     # -----------------------------
     # TAB 5: DATA OVERVIEW
     # -----------------------------
@@ -1391,5 +1394,4 @@ if st.session_state.analysis_ready:
 
 else:
     st.info("Enter your inputs in the sidebar and click **Run Analysis**.")
-
 # test using "python -m streamlit run "portfolio-app/app.py"" in terminal
